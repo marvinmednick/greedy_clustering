@@ -58,13 +58,9 @@ impl ClusteringInfo {
         (self.vertex_map.len(),self.edges.len())
     }
 
-    pub fn num_groups(&self) -> usize {
-        self.groups
-    }
-
     pub fn add_vertex(&mut self,vertex_id: u32)  {
         if ! self.vertex_map.contains_key(&vertex_id) {
-            let err = self.vertex_map.insert(vertex_id,VertexInfo::new(vertex_id));
+            let _err = self.vertex_map.insert(vertex_id,VertexInfo::new(vertex_id));
             self.groups += 1;
         }
     }
@@ -104,10 +100,6 @@ impl ClusteringInfo {
         self.edges.push(edge);
     }
 
-    pub fn sort_edges(&mut self) {
-        self.edges.sort();
-    }
-
     // recursively traverse the tree until it finds the top 
     // as a result, each member of the tree visisted will also be updated 
     pub fn find_grouping(&mut self, vertex_id: u32) -> u32 {
@@ -125,7 +117,6 @@ impl ClusteringInfo {
         current_group
 
     }
-
 
     pub fn same_group(&mut self, node1: u32, node2: u32) -> bool {
         let group1 = self.find_grouping(node1).clone();
