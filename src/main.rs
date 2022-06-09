@@ -87,64 +87,45 @@ fn main() {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::graph::Edge;
 
-	fn setup_basic1() -> Graph {
-		let mut g = Graph::new();
-		assert_eq!(g.add_edge(1,2,1),Some(1));
-        assert_eq!(g.add_edge(1,3,1),Some(2));
-        assert_eq!(g.add_edge(2,3,1),Some(1));
-        assert_eq!(g.add_edge(2,4,1),Some(2));
-        assert_eq!(g.add_edge(3,4,1),Some(1));
-        assert_eq!(g.get_outgoing(1),&[Edge::new(2,1),Edge::new(3,1)]);
-		assert_eq!(g.get_outgoing(2),&[Edge::new(3,1),Edge::new(4,1)]);
-		assert_eq!(g.get_outgoing(3),&[Edge::new(4,1)]);
-		assert_eq!(g.get_outgoing(4),&[]);
-		g
+    fn setup_basic() -> ClusteringInfo {
+            let basic_data = vec!( 
+                (1,2,1),
+                (1,3,4),
+                (1,4,5),
+                (1,5,10),
+                (1,6,11),
+                (1,7,12),
+                (2,3,3),
+                (2,4,4),
+                (2,5,9),
+                (2,6,10),
+                (2,7,11),
+                (3,4,1),
+                (3,5,6),
+                (3,6,7),
+                (3,7,8),
+                (4,5,5),
+                (4,6,6),
+                (4,7,7),
+                (5,6,1),
+                (5,7,2),
+                (6,7,1),
+           );	
+
+		let mut c = ClusteringInfo::new();
+        for e in basic_data {
+            c.add_edge(e.0,e.1,e.2);
+        }
+		assert_eq!(c.size(),(7,21));
+        c
 	} 
 
     #[test]
     fn basic() {
-		let mut g = Graph::new();
-		assert_eq!(g.create_vertex(&1),Some(1));
-		assert_eq!(g.create_vertex(&2),Some(2));
-		assert_eq!(g.add_edge(1,2,1),Some(1));
-		assert_eq!(g.get_vertexes(),vec!(1,2));
-		assert_eq!(g.create_vertex(&3),Some(3));
-		assert_eq!(g.add_edge(1,3,1),Some(2));
-		assert_eq!(g.add_edge(2,3,1),Some(1));
-		assert_eq!(g.get_vertexes(),vec!(1,2,3));
-		assert_eq!(g.add_edge(1,4,1),Some(3));
-		assert_eq!(g.get_vertexes(),vec!(1,2,3,4));
-		println!("{:?}",g);
-
+        let mut c = setup_basic();
+		assert_eq!(c.cluster(3),3);
+		assert_eq!(c.cluster(2),5);
     }
-
-	#[test]
-	fn test_add() {
-		let mut g = Graph::new();
-		assert_eq!(g.add_edge(1,2,1),Some(1));
-		assert_eq!(g.get_outgoing(1),&[Edge::new(2,1)]);
-		assert_eq!(g.get_incoming(2),&[Edge::new(1,1)]);
-		assert_eq!(g.add_edge(1,3,1),Some(2));
-		assert_eq!(g.get_outgoing(1),&[Edge::new(2,1),Edge::new(3,1)]);
-		assert_eq!(g.get_incoming(2),&[Edge::new(1,1)]);
-	}
-
-	#[test]
-	fn test_add_del() {
-		let mut g = setup_basic1();
-		assert_eq!(g.get_outgoing(1),&[Edge::new(2,1),Edge::new(3,1)]);
-		assert_eq!(g.add_edge(1,2,1),Some(3));
-		assert_eq!(g.get_outgoing(1),&[Edge::new(2,1),Edge::new(3,1)]);
-		assert_eq!(g.get_outgoing(2),&[Edge::new(3,1),Edge::new(4,1)]);
-		assert_eq!(g.get_outgoing(3),&[Edge::new(4,1)]);
-		assert_eq!(g.delete_edge(1,2,1),Ok(()));
-		assert_eq!(g.get_outgoing(1),&[Edge::new(2,1),Edge::new(3,1)]);
-		assert_eq!(g.delete_edge(1,2,1),Ok(()));
-		assert_eq!(g.get_outgoing(1),&[Edge::new(3,1)]);
-		
-	}
-
 
  }
