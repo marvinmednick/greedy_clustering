@@ -7,8 +7,8 @@ use std::io;
 mod cmd_line;
 use crate::cmd_line::CommandArgs;
 
-mod unionfind;
-use crate::unionfind::ClusteringInfo;
+mod cluster;
+use crate::cluster::ClusteringInfo;
 
 
 fn main() {
