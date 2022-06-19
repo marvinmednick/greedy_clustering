@@ -1,6 +1,6 @@
 use std::path::Path;
 use std::fs::File;
-use std::io::{prelude::*, BufReader};
+use std::io::{prelude::*, BufReader,BufRead};
 use regex::Regex;
 use std::io;
 
@@ -10,25 +10,9 @@ use crate::cmd_line::CommandArgs;
 mod cluster;
 use crate::cluster::ClusteringInfo;
 
+mod hammingcluster;
 
-fn main() {
-
-
-    let cmd_line = CommandArgs::new();
-
-    println!("Hello, {:?}!",cmd_line);
-
-    println!("Determining the distances for {} clusters",cmd_line.num_clusters);
-  // Create a path to the desired file
-    let path = Path::new(&cmd_line.filename);
-    let display = path.display();
-
-
-    // Open the path in read-only mode, returns `io::Result<File>`
-    let file = match File::open(&path) {
-        Err(why) => panic!("couldn't open {}: {}", display, why),
-        Ok(file) => file,
-    };
+fn process_standard_cluster(file: &mut fs::File, num_clusters : usize ) {
 
     let mut reader = BufReader::new(file);
 
@@ -69,9 +53,33 @@ fn main() {
 
     let (num_vertex,num_edges) = c.size();
     println!("Completed reading {} vertex and {} edges",num_vertex,num_edges);
-    let distance = c.cluster(cmd_line.num_clusters);
-    println!("Distance at {} clusters is {}",cmd_line.num_clusters,distance);
+    let distance = c.cluster(num_clusters);
+    println!("Distance at {} clusters is {}",num_clusters,distance);
 
+}
+
+
+fn main() {
+
+
+    let cmd_line = CommandArgs::new();
+
+    println!("Hello, {:?}!",cmd_line);
+
+    println!("Determining the distances for {} clusters",cmd_line.num_clusters);
+  // Create a path to the desired file
+    let path = Path::new(&cmd_line.filename);
+    let display = path.display();
+
+
+    // Open the path in read-only mode, returns `io::Result<File>`
+    let file = match File::open(&path) {
+        Err(why) => panic!("couldn't open {}: {}", display, why),
+        Ok(file) => file,
+    };
+
+
+    process_standard_cluster(reader,cmd_line.num_clusters);
 
 }
 
