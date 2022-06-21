@@ -69,7 +69,7 @@ impl HammingClusteringInfo {
                 self.groups += 1;
             }
             else {
-                let mut vg = self.hamming_clusters.get_mut(&hamming_code).unwrap();
+                let vg = self.hamming_clusters.get_mut(&hamming_code).unwrap();
                 vg.add(vertex_id);
             }
         }
@@ -84,12 +84,12 @@ impl HammingClusteringInfo {
     }
 
 
-    pub fn incr_rank(&self,hamming_code: u32) {
+    pub fn incr_rank(&mut self,hamming_code: u32) {
         let mut cluster_info = self.hamming_clusters.get_mut(&hamming_code).unwrap();
         cluster_info.rank += 1;
     }
 
-    pub fn update_group(&self,hamming_code: u32, new_group: u32) {
+    pub fn update_group(&mut self,hamming_code: u32, new_group: u32) {
         let mut cluster_info = self.hamming_clusters.get_mut(&hamming_code).unwrap();
         cluster_info.group_id = new_group;
     }

@@ -12,7 +12,7 @@ use crate::cluster::ClusteringInfo;
 
 mod hammingcluster;
 
-fn process_standard_cluster(file: &mut fs::File, num_clusters : usize ) {
+fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
 
     let mut reader = BufReader::new(file);
 
@@ -73,13 +73,13 @@ fn main() {
 
 
     // Open the path in read-only mode, returns `io::Result<File>`
-    let file = match File::open(&path) {
+    let mut file = match File::open(&path) {
         Err(why) => panic!("couldn't open {}: {}", display, why),
         Ok(file) => file,
     };
 
 
-    process_standard_cluster(reader,cmd_line.num_clusters);
+    process_standard_cluster(&mut file,cmd_line.num_clusters);
 
 }
 
