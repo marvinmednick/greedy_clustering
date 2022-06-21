@@ -8,17 +8,57 @@ struct BitMaskingTable {
 
 
 impl BitMaskingTable {
-    pub fn new(entries: u32) -> Self {
+    pub fn new_one_bit(num_bits: u32) -> Self {
         let mut cur_mask = 0x1;
         let mut count = 0;
         let mut bt = BitMaskingTable { bitmasks:  Vec::<u32>::new() };
 
         // for each bitmask needed
         // add it to the vector and then shift it left by one
-        while count < entries {
+        while count < num_bits {
             bt.bitmasks.push(cur_mask);
             cur_mask =  cur_mask << 1;
             count +=1;
+        }
+        bt
+    }
+
+    pub fn new_two_bit(num_bits: u32) -> Self {
+        let mut cur_first_bit_mask = 0x1;
+        let mut first_bit_count = 0;
+        let mut bt = BitMaskingTable { bitmasks:  Vec::<u32>::new() };
+
+        // this set of loops will create all the two bit combintations
+        // There will be Combination(n,2) entries
+        // This will iterate through all the single bit options one by one
+        // and then iterate through all the remaining options for a 2nd bit
+        // Note that since the bits will be walking from right to left
+        // (first bit 001, then 010, then 100) the inner loop only needs to look
+        // at bits left of the starting bit, since bits to the right will already been 
+        // covered by the previous starting bits (i.e.  011 will be found by
+        // with starting bit 001 and therefore starting bit 010 doesn't need
+        // to add it)  as a result, the inner loop only needs to loop for the 
+        // number of bits remaining to the left of the starting bit
+        while first_bit_count < num_bits {
+            let mut cur_second_bit_mask = cur_first_bit_mask << 1;
+            // num_bits -count is the remaining number of bits to process
+            // we're going set the number of second bits for inner loop 
+            // so that we process all the 2nd bit options remaining
+            // one less than the remaining number of bits 
+            let mut num_second_bits = num_bits - first_bit_count - 1;
+            let mut second_bit_count = 0;
+            while second_bit_count < num_second_bits {
+                // combine the first and second bits together to create
+                // a two bit mask and add it to the table
+                let new_entry = cur_first_bit_mask | cur_second_bit_mask;
+                bt.bitmasks.push(new_entry);
+                //shift the seond bit to the left
+                cur_second_bit_mask = cur_second_bit_mask << 1;
+                second_bit_count += 1;
+            }
+
+            cur_first_bit_mask =  cur_first_bit_mask << 1;
+            first_bit_count +=1;
         }
         bt
     }
@@ -242,19 +282,20 @@ impl HammingClusteringInfo {
 mod tests {
     use super::*;
 
-    fn setup_basic() -> HammingClusteringInfo {
+    fn setup_basic(num: u32) -> HammingClusteringInfo {
         let mut c = HammingClusteringInfo::new();
-        c.add_vertex(1,0x00);
-        c.add_vertex(2,0x01);
-        c.add_vertex(3,0x02);
+        for i in 0..num {
+            c.add_vertex(i+1,i);
+        }
         println!("Initial Setup {:#?}",c);
         c
 
     }
 
+
     #[test]
     fn initial_setup_test() {
-        let mut c = setup_basic();
+        let mut c = setup_basic(3);
         assert_eq!(c.sizes(),(3,3,3));
         assert_eq!(c.find_group(1),Some(0));
         assert_eq!(c.find_group(2),Some(1));
@@ -280,7 +321,7 @@ mod tests {
 
     #[test]
     fn union_test() {
-        let mut c = setup_basic();
+        let mut c = setup_basic(3);
         c.union(0,1);
         println!("After Union {:#?}",c);
         assert_eq!(c.find_grouping(1),0);
@@ -290,12 +331,29 @@ mod tests {
     }
 
     #[test]
-    fn bitmask_table_test() {
-        let b = BitMaskingTable::new(3);
+    fn bitmask_one_bit_table_test() {
+        let b = BitMaskingTable::new_one_bit(3);
         assert_eq!(b.get_mask(0),0b1);
         assert_eq!(b.get_mask(1), 0b10);
         assert_eq!(b.get_mask(2),0b100);
         assert_eq!(b.get_mask(3),0);
+    }
+
+    #[test]
+    fn bitmask_two_bit_table_test() {
+        let b = BitMaskingTable::new_two_bit(3);
+        assert_eq!(b.get_mask(0),0b011);
+        assert_eq!(b.get_mask(1),0b101);
+        assert_eq!(b.get_mask(2),0b110);
+        assert_eq!(b.get_mask(3),0);
+        let b = BitMaskingTable::new_two_bit(4);
+        assert_eq!(b.get_mask(0),0b0011);
+        assert_eq!(b.get_mask(1),0b0101);
+        assert_eq!(b.get_mask(2),0b1001);
+        assert_eq!(b.get_mask(3),0b0110);
+        assert_eq!(b.get_mask(4),0b1010);
+        assert_eq!(b.get_mask(5),0b1100);
+        assert_eq!(b.get_mask(6),0);
     }
 
 }
