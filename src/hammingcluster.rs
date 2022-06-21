@@ -174,12 +174,12 @@ impl HammingClusteringInfo {
             self.update_group(code1,code2);
             // update the number of remaining groups
             self.groups -= 1;
-            println!("New group for {} is {}",group2, group1);
+            println!("> New group for {} is {} - groups={}",group2, group1,self.groups);
         }
         else if rank1 < rank2 {
             self.update_group(code2,code1);
             self.groups -= 1;
-            println!("New group for {} is {}",group1, group2);
+            println!("> New group for {} is {} - groups={}",group1, group2,self.groups);
         }
         else {
             // code1 and code2 rank are the same...  picking code 1 as the collection to add to
@@ -187,7 +187,8 @@ impl HammingClusteringInfo {
             //update the head vertex of code2 group(which is the group number) group of group1
             self.update_group(code2,code1);
             self.incr_rank(code1);
-            println!("New group for {} is {}",group2, group1);
+            self.groups -= 1;
+            println!("> New group for {} is {} - groups={}",group1, group2,self.groups);
         }
 
     }
@@ -213,7 +214,7 @@ mod tests {
         c.add_vertex(1,0x00);
         c.add_vertex(2,0x01);
         c.add_vertex(3,0x02);
-        println!("Initial Setup {:?}",c);
+        println!("Initial Setup {:#?}",c);
         c
 
     }
@@ -248,8 +249,11 @@ mod tests {
     fn union_test() {
         let mut c = setup_basic();
         c.union(0,1);
+        println!("After Union {:#?}",c);
         assert_eq!(c.find_grouping(1),0);
         assert_eq!(c.same_group(0,1),true);
+        assert_eq!(c.get_rank(0),2);
+        assert_eq!(c.sizes(),(3,3,2));
     }
 
 }
