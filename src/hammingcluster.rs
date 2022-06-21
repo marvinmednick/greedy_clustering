@@ -1,4 +1,4 @@
- use std::collections::{HashMap};
+use std::collections::{HashMap};
 
 #[derive(Debug)]
 struct VertexGroup {
@@ -12,12 +12,14 @@ impl VertexGroup {
 
     // create a new vertex group
     pub fn new(id: u32, hamming_code: u32) -> Self {
-        VertexGroup {
+        let mut new_group = VertexGroup {
             hamming_code: hamming_code,
             vertex_list:  Vec::<u32>::new(),
-            group_id: id,
+            group_id: hamming_code,
             rank: 1
-        }
+        };
+        new_group.vertex_list.push(id);
+        new_group
     }
 
     // adds a new vertex Id to an exist VertexGroup
@@ -29,8 +31,13 @@ impl VertexGroup {
         self.rank = new_rank;
     }
 
+    pub fn get_rank(&self) -> u32 {
+        self.rank
+    }
+
 }
 
+#[derive(Debug)]
 pub struct HammingClusteringInfo {
     // hamming clusters map a hamming code to vertex info,
     // which is list of vertexes that belong in the same group or cluster
@@ -78,9 +85,13 @@ impl HammingClusteringInfo {
         }
     }
 
+    pub fn sizes(&self) -> (usize,usize,usize) {
+        (self.vertex_map.len(),self.hamming_clusters.len(),self.groups)
+    }
+
 
     pub fn get_rank(&self,hamming_code: u32) -> u32 {
-        self.hamming_clusters[&hamming_code].rank
+        self.hamming_clusters[&hamming_code].get_rank()
     }
 
 
@@ -103,6 +114,16 @@ impl HammingClusteringInfo {
 
     }
 
+    pub fn find_group(&mut self,vertex: u32) -> Option<u32> {
+        if let Some(hamming_code) = self.vertex_map.get(&vertex) {
+            let hc = hamming_code.clone();
+            Some(self.find_grouping(hc))
+        }
+        else {
+            None
+        }
+    }
+    
     // recursively traverse the tree until it finds the top 
     // as a result, each member of the tree visisted will also be updated 
     // shortining the number of checks as time proceeds
@@ -110,20 +131,26 @@ impl HammingClusteringInfo {
 
         // remove the current entry from the list as we need to modify it
         // (it will be re-inserted later)
-        let mut current_vertex_group = self.hamming_clusters.remove(&hamming_code).unwrap();
+        if let Some(mut current_vertex_group) = self.hamming_clusters.remove(&hamming_code) {
 
-        // get a copy of the current group id
-        let mut current_group = current_vertex_group.group_id.clone();
-        
-        // check if this node is at the the top of the tree
-        if current_group != current_vertex_group.hamming_code {
-            // if not, set the group to the grouping of my parent
-            current_group = self.find_grouping(current_group);
+            // get a copy of the current group id
+            let mut current_group = current_vertex_group.group_id.clone();
+            
+            // check if this node is at the the top of the tree
+            if current_group != current_vertex_group.hamming_code {
+                // if not, set the group to the grouping of my parent
+                current_group = self.find_grouping(current_group);
+            }
+            // update the group and then re-insert into the hashmap
+            current_vertex_group.group_id = current_group;
+            self.hamming_clusters.insert(hamming_code,current_vertex_group);
+            current_group
+        }    
+        else {
+            println!("No Entry found for hamming code {}",hamming_code);
+            0
         }
-        // update the group and then re-insert into the hashmap
-        current_vertex_group.group_id = current_group;
-        self.hamming_clusters.insert(hamming_code,current_vertex_group);
-        current_group
+    
 
     }
 
@@ -167,3 +194,62 @@ impl HammingClusteringInfo {
 
 }
 
+
+
+/*
+ * the rest of this file sets up unit tests
+ * to run these, the command will be:
+ * cargo test --package rust-template -- --nocapture
+ * Note: 'rust-template' comes from Cargo.toml's 'name' key
+ */
+
+// use the attribute below for unit tests
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn setup_basic() -> HammingClusteringInfo {
+        let mut c = HammingClusteringInfo::new();
+        c.add_vertex(1,0x00);
+        c.add_vertex(2,0x01);
+        c.add_vertex(3,0x02);
+        println!("Initial Setup {:?}",c);
+        c
+
+    }
+
+    #[test]
+    fn initial_setup_test() {
+        let mut c = setup_basic();
+        assert_eq!(c.sizes(),(3,3,3));
+        assert_eq!(c.find_group(1),Some(0));
+        assert_eq!(c.find_group(2),Some(1));
+        assert_eq!(c.find_group(3),Some(2));
+        assert_eq!(c.same_group(0,1),false);
+        assert_eq!(c.same_group(0,2),false);
+        assert_eq!(c.same_group(1,2),false);
+        assert_eq!(c.get_rank(0),1);
+        assert_eq!(c.get_rank(1),1);
+        assert_eq!(c.get_rank(2),1);
+        c.incr_rank(2);
+        assert_eq!(c.get_rank(2),2);
+    }
+
+    #[test]
+    fn vertex_test() {
+        let mut v = VertexGroup::new(1,0xAAA);
+        assert_eq!(v.get_rank(),1);
+        v.update_rank(3);
+        assert_eq!(v.get_rank(),3);
+    }
+
+
+    #[test]
+    fn union_test() {
+        let mut c = setup_basic();
+        c.union(0,1);
+        assert_eq!(c.find_grouping(1),0);
+        assert_eq!(c.same_group(0,1),true);
+    }
+
+}
