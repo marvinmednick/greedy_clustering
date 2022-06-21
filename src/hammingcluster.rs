@@ -1,6 +1,39 @@
 use std::collections::{HashMap};
 
 #[derive(Debug)]
+struct BitMaskingTable {
+    bitmasks: Vec<u32>
+
+}
+
+
+impl BitMaskingTable {
+    pub fn new(entries: u32) -> Self {
+        let mut cur_mask = 0x1;
+        let mut count = 0;
+        let mut bt = BitMaskingTable { bitmasks:  Vec::<u32>::new() };
+
+        // for each bitmask needed
+        // add it to the vector and then shift it left by one
+        while count < entries {
+            bt.bitmasks.push(cur_mask);
+            cur_mask =  cur_mask << 1;
+            count +=1;
+        }
+        bt
+    }
+
+    pub fn get_mask(&self,entry: usize) -> u32 {
+        if entry < self.bitmasks.len() {
+            self.bitmasks.get(entry).unwrap().clone()
+        }
+        else {
+            0
+        }
+    }
+
+}
+#[derive(Debug)]
 struct VertexGroup {
     hamming_code: u32,
     vertex_list: Vec<u32>,
@@ -254,6 +287,15 @@ mod tests {
         assert_eq!(c.same_group(0,1),true);
         assert_eq!(c.get_rank(0),2);
         assert_eq!(c.sizes(),(3,3,2));
+    }
+
+    #[test]
+    fn bitmask_table_test() {
+        let b = BitMaskingTable::new(3);
+        assert_eq!(b.get_mask(0),0b1);
+        assert_eq!(b.get_mask(1), 0b10);
+        assert_eq!(b.get_mask(2),0b100);
+        assert_eq!(b.get_mask(3),0);
     }
 
 }
