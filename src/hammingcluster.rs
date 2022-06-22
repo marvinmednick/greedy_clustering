@@ -1,4 +1,4 @@
-use std::collections::{HashMap}; 
+use std::collections::{HashMap,BTreeMap}; 
 #[derive(Debug)]
 struct BitMaskingTable {
     bitmasks: Vec<u32>
@@ -70,6 +70,11 @@ impl BitMaskingTable {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.bitmasks.len()
+    }
+
+
 }
 #[derive(Debug)]
 struct VertexGroup {
@@ -115,22 +120,24 @@ pub struct HammingClusteringInfo {
     // Note vertexes with the same hamming code will start out in the
     // the same cluster;  later clusters will be merged
     // based on their hamming code distance
-    hamming_clusters : HashMap<u32,VertexGroup>,
+    hamming_clusters : BTreeMap<u32,VertexGroup>,
     // vertex maps a vertex_id to its hamming code
     vertex_map : HashMap<u32,u32>,
 
     //count of number of groups
     groups: usize,
+    hamming_size: u32,
 }
 
 
 impl HammingClusteringInfo {
 
-    pub fn new() -> Self { 
+    pub fn new(hamming_size: u32) -> Self { 
         HammingClusteringInfo { 
-            hamming_clusters: HashMap::<u32,VertexGroup>::new(),
+            hamming_clusters: BTreeMap::<u32,VertexGroup>::new(),
             vertex_map: HashMap::<u32,u32>::new(),
-            groups: 0 
+            groups: 0,
+            hamming_size: hamming_size,
         }
     }
 
@@ -173,6 +180,7 @@ impl HammingClusteringInfo {
 
     // moves all the vertex in the list from the 'from group' to the "to group"
     pub fn combine_groups(&mut self,from_group: u32, to_group: u32) {
+        println!("Moving {} to {}",from_group,to_group);
         let mut from_vg = self.hamming_clusters.remove(&from_group).unwrap();
         let mut to_vg = self.hamming_clusters.remove(&to_group).unwrap();
         to_vg.vertex_list.append(&mut from_vg.vertex_list);
@@ -226,25 +234,21 @@ impl HammingClusteringInfo {
                 let mut max_spacing = 0;
                 let mut min_spacing = u32::MAX;
                 for v1 in iter_g1 {
+                    println!("Checking {}",v1);
                     let iter_g2_copy = iter_g2.clone();
                     for v2 in iter_g2_copy {
+                        println!("..Checking {} {}",v1,v2);
                         // skip checking spacing for min/max between a vector and itself..
                         if *v1 == *v2 {
                             continue;
                         }
                         if let Some(spacing) = self.vertex_spacing(*v1,*v2)  {
-                            println!("Spacing between {} and {} is {}",v1,v2,spacing);
+                            println!("HC Spacing between v{} and v{} is {}",v1,v2,spacing);
                             if spacing > max_spacing {
-                                println!("before {} {}",min_spacing,max_spacing);
-                                println!("Updating Max spacing {}",spacing);
                                 max_spacing = spacing;
-                                println!("now {} {}",min_spacing,max_spacing);
                             }
                             if spacing < min_spacing {
-                                println!("before {} {}",min_spacing,max_spacing);
-                                println!("Updating Min spacing {}",spacing);
                                 min_spacing = spacing;
-                                println!("now {} {}",min_spacing,max_spacing);
                             }
                         }
                         else {
@@ -252,7 +256,7 @@ impl HammingClusteringInfo {
                         }
                     }
                 }
-                println!("returning {} {}",min_spacing,max_spacing);
+                println!("HC Spacing between {} and {} is ({},{})",group1,group2,min_spacing,max_spacing);
                 (min_spacing,max_spacing)
 
             }),
@@ -262,12 +266,52 @@ impl HammingClusteringInfo {
     }
 
 
-
     //  cluster 
     //
     //  going to find and combine all the groups
     //  whose hamming distance is either 1 or 2  
-    pub fn cluster(&mut self, k : usize) {
+    pub fn do_cluster(&mut self, max_dist: u32) {
+        let one_bit_bitmask =  BitMaskingTable::new_one_bit(self.hamming_size);
+        let two_bit_bitmask =  BitMaskingTable::new_two_bit(self.hamming_size);
+        let mut hamming_code_list = Vec::<u32>::new();
+
+        for key in self.hamming_clusters.keys() {
+            hamming_code_list.push(key.clone());
+        }
+
+        for key in hamming_code_list {
+            // skip any hamming codes that are empty
+            if self.hamming_clusters[&key].vertex_list.len() == 0 {
+                continue
+            }
+            let current_hamming_code = key.clone();
+            for i in 0..one_bit_bitmask.len() {
+                let mask = one_bit_bitmask.get_mask(i);
+                let dest_hamming_code = (current_hamming_code ^ mask).clone();
+                println!("Checking {} and {} result dest -> {}",current_hamming_code,mask,dest_hamming_code);
+                if self.hamming_clusters.contains_key(&dest_hamming_code) && 
+                    self.hamming_clusters[&dest_hamming_code].vertex_list.len() > 0 {
+                    let (_,spacing) = self.hamming_cluster_spacing(current_hamming_code,dest_hamming_code).unwrap() ;
+                    println!(" ... Spacing between {} and {} is {}",current_hamming_code,dest_hamming_code,spacing);
+                    if spacing < max_dist {
+                        self.union_by_code(current_hamming_code,dest_hamming_code);
+                    }
+                }
+            }
+            for i in 0..two_bit_bitmask.len() {
+                let mask = two_bit_bitmask.get_mask(i);
+                let dest_hamming_code = (current_hamming_code ^ mask).clone();
+                println!("Checking {} and {} result dest -> {}",current_hamming_code,mask,dest_hamming_code);
+                if self.hamming_clusters.contains_key(&dest_hamming_code) &&
+                    self.hamming_clusters[&dest_hamming_code].vertex_list.len() > 0 {
+                    let (_,spacing) = self.hamming_cluster_spacing(current_hamming_code,dest_hamming_code).unwrap() ;
+                    println!(" ___ Spacing between {} and {} is {}",current_hamming_code,dest_hamming_code,spacing);
+                    if spacing < max_dist {
+                        self.union_by_code(current_hamming_code,dest_hamming_code);
+                    }
+                }
+            }
+        }
 
     }
 
@@ -353,15 +397,17 @@ impl HammingClusteringInfo {
             //Nothing to do, already are in the same group
         }
         else if rank1 > rank2 {
-            self.combine_groups(code1,code2);
+            self.combine_groups(code2,code1);
             // update the number of remaining groups
             self.groups -= 1;
             println!("> New group for {} is {} - groups={}",group2, group1,self.groups);
+            println!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
         }
         else if rank1 < rank2 {
-            self.combine_groups(code2,code1);
+            self.combine_groups(code1,code2);
             self.groups -= 1;
-            println!("> New group for {} is {} - groups={}",group1, group2,self.groups);
+            println!("< New group for {} is {} - groups={}",group1, group2,self.groups);
+            println!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
         }
         else {
             // code1 and code2 rank are the same...  picking code 1 as the collection to add to
@@ -370,7 +416,8 @@ impl HammingClusteringInfo {
             self.combine_groups(code2,code1);
             self.incr_rank(code1);
             self.groups -= 1;
-            println!("> New group for {} is {} - groups={}",group1, group2,self.groups);
+            println!("= New group for {} is {} - groups={}",group1, group2,self.groups);
+            println!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
         }
 
     }
@@ -392,9 +439,10 @@ mod tests {
     use super::*;
 
     fn setup_basic(num: u32) -> HammingClusteringInfo {
-        let mut c = HammingClusteringInfo::new();
+        let num_bits = (num as f64).log(2.0).ceil() as u32;
+        let mut c = HammingClusteringInfo::new(num_bits);
         for i in 0..num {
-            c.add_vertex(i+1,i);
+            c.add_vertex(i,i);
         }
         println!("Initial Setup {:#?}",c);
         c
@@ -486,6 +534,20 @@ mod tests {
         println!("Final {:#?}",c);
         assert_eq!(c.vertex_cluster_spacing(1,8),Some((1,3)));
 
+    }
+
+    #[test]
+    fn cluster_test() {
+        let mut c = setup_basic(16);
+        c.do_cluster(3);
+        println!("Final {:#?}",c);
+        assert_eq!(c.sizes(),(16,16,2));
+    }
+
+    #[test]
+    fn hamming_cluster_spacing_test() {
+        let mut c = setup_basic(16);
+        assert_eq!(c.hamming_cluster_spacing(0,4),Some((1,1)))
     }
 
 }
