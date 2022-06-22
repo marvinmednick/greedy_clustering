@@ -1,11 +1,9 @@
-use std::collections::{HashMap};
-
+use std::collections::{HashMap}; 
 #[derive(Debug)]
 struct BitMaskingTable {
     bitmasks: Vec<u32>
 
 }
-
 
 impl BitMaskingTable {
     pub fn new_one_bit(num_bits: u32) -> Self {
@@ -45,7 +43,7 @@ impl BitMaskingTable {
             // we're going set the number of second bits for inner loop 
             // so that we process all the 2nd bit options remaining
             // one less than the remaining number of bits 
-            let mut num_second_bits = num_bits - first_bit_count - 1;
+            let num_second_bits = num_bits - first_bit_count - 1;
             let mut second_bit_count = 0;
             while second_bit_count < num_second_bits {
                 // combine the first and second bits together to create
@@ -75,7 +73,7 @@ impl BitMaskingTable {
 }
 #[derive(Debug)]
 struct VertexGroup {
-    hamming_code: u32,
+    orig_hamming_code: u32,
     vertex_list: Vec<u32>,
     group_id:  u32,
     rank:  u32,
@@ -86,7 +84,7 @@ impl VertexGroup {
     // create a new vertex group
     pub fn new(id: u32, hamming_code: u32) -> Self {
         let mut new_group = VertexGroup {
-            hamming_code: hamming_code,
+            orig_hamming_code: hamming_code,
             vertex_list:  Vec::<u32>::new(),
             group_id: hamming_code,
             rank: 1
@@ -173,10 +171,96 @@ impl HammingClusteringInfo {
         cluster_info.rank += 1;
     }
 
-    pub fn update_group(&mut self,hamming_code: u32, new_group: u32) {
-        let mut cluster_info = self.hamming_clusters.get_mut(&hamming_code).unwrap();
-        cluster_info.group_id = new_group;
+    // moves all the vertex in the list from the 'from group' to the "to group"
+    pub fn combine_groups(&mut self,from_group: u32, to_group: u32) {
+        let mut from_vg = self.hamming_clusters.remove(&from_group).unwrap();
+        let mut to_vg = self.hamming_clusters.remove(&to_group).unwrap();
+        to_vg.vertex_list.append(&mut from_vg.vertex_list);
+        from_vg.group_id = to_group;
+        self.hamming_clusters.insert(from_group,from_vg);
+        self.hamming_clusters.insert(to_group,to_vg);
     }
+
+    // caclulate the spacing between two vertexes
+    pub fn vertex_spacing(&self, id1: u32, id2:u32) -> Option<u32> {
+
+        let result1 = self.vertex_map.get(&id1);
+        let result2 = self.vertex_map.get(&id2);
+
+        match (result1, result2) {
+            (Some(code1), Some(code2)) =>  Some({ 
+                // xor the values to find the bit differences
+                let bit_diff = code1 ^ code2;
+                // return the number of one bits in the result
+                bit_diff.count_ones() }),
+            _ => None
+        }
+
+    }
+
+
+
+    pub fn vertex_cluster_spacing(&mut self, v1: u32, v2 :u32) -> Option<(u32,u32)>{
+        let result1 = self.find_group(v1);
+        let result2 = self.find_group(v2);
+
+        match (result1, result2) {
+            (Some(group1),Some(group2)) => self.hamming_cluster_spacing(group1,group2),
+            _ => return None,
+        }
+
+    }
+
+
+    // caclulate the min and max cluster spacing between two groups
+    // The cluster spacings and the min and max spacing between any two vertexes
+    // in the cluster
+    pub fn hamming_cluster_spacing(&self, group1: u32, group2 :u32) -> Option<(u32,u32)>{
+        let vg1 = self.hamming_clusters.get(&group1);
+        let vg2 = self.hamming_clusters.get(&group2);
+
+        match (vg1,vg2) {
+            (Some(vgroup1),Some(vgroup2)) => Some ({
+                let iter_g1 = vgroup1.vertex_list.iter();
+                let iter_g2 = vgroup2.vertex_list.iter();
+                let mut max_spacing = 0;
+                let mut min_spacing = u32::MAX;
+                for v1 in iter_g1 {
+                    let iter_g2_copy = iter_g2.clone();
+                    for v2 in iter_g2_copy {
+                        // skip checking spacing for min/max between a vector and itself..
+                        if *v1 == *v2 {
+                            continue;
+                        }
+                        if let Some(spacing) = self.vertex_spacing(*v1,*v2)  {
+                            println!("Spacing between {} and {} is {}",v1,v2,spacing);
+                            if spacing > max_spacing {
+                                println!("before {} {}",min_spacing,max_spacing);
+                                println!("Updating Max spacing {}",spacing);
+                                max_spacing = spacing;
+                                println!("now {} {}",min_spacing,max_spacing);
+                            }
+                            if spacing < min_spacing {
+                                println!("before {} {}",min_spacing,max_spacing);
+                                println!("Updating Min spacing {}",spacing);
+                                min_spacing = spacing;
+                                println!("now {} {}",min_spacing,max_spacing);
+                            }
+                        }
+                        else {
+                            return None
+                        }
+                    }
+                }
+                println!("returning {} {}",min_spacing,max_spacing);
+                (min_spacing,max_spacing)
+
+            }),
+            _ => None
+        }
+
+    }
+
 
 
     //  cluster 
@@ -210,7 +294,9 @@ impl HammingClusteringInfo {
             let mut current_group = current_vertex_group.group_id.clone();
             
             // check if this node is at the the top of the tree
-            if current_group != current_vertex_group.hamming_code {
+            // if the group hasn't changed from the initial setup
+            // this is the top of the tree
+            if current_group != current_vertex_group.orig_hamming_code {
                 // if not, set the group to the grouping of my parent
                 current_group = self.find_grouping(current_group);
             }
@@ -227,13 +313,36 @@ impl HammingClusteringInfo {
 
     }
 
-    pub fn same_group(&mut self, code1: u32, code2: u32) -> bool {
+    pub fn vertex_same_group(&mut self, v1: u32, v2: u32) -> bool {
+        let group1 = self.find_group(v1).clone();
+        let group2 = self.find_group(v2).clone();
+        group1 == group2
+    }
+
+    pub fn code_same_group(&mut self, code1: u32, code2: u32) -> bool {
         let group1 = self.find_grouping(code1).clone();
         let group2 = self.find_grouping(code2).clone();
         group1 == group2
     }
 
-    pub fn union(&mut self, code1: u32, code2: u32) {
+
+    pub fn union_by_vertex(&mut self, v1: u32, v2: u32) {
+        let lookup1 = self.vertex_map.get(&v1);
+        let lookup2 = self.vertex_map.get(&v2);
+
+        match (lookup1,lookup2) {
+            (Some(code1),Some(code2)) => {
+                // clone the codes to elminiate borrown issues
+                let c1 = code1.clone();
+                let c2 = code2.clone();
+                self.union_by_code(c1,c2);
+            }
+            _ => println!("Union by Vertex: Invalid Vertex"),
+        }
+
+    } 
+
+    pub fn union_by_code(&mut self, code1: u32, code2: u32) {
         let group1 = self.find_grouping(code1).clone();
         let group2 = self.find_grouping(code2).clone();
         let rank1 = self.get_rank(code1).clone();
@@ -244,13 +353,13 @@ impl HammingClusteringInfo {
             //Nothing to do, already are in the same group
         }
         else if rank1 > rank2 {
-            self.update_group(code1,code2);
+            self.combine_groups(code1,code2);
             // update the number of remaining groups
             self.groups -= 1;
             println!("> New group for {} is {} - groups={}",group2, group1,self.groups);
         }
         else if rank1 < rank2 {
-            self.update_group(code2,code1);
+            self.combine_groups(code2,code1);
             self.groups -= 1;
             println!("> New group for {} is {} - groups={}",group1, group2,self.groups);
         }
@@ -258,7 +367,7 @@ impl HammingClusteringInfo {
             // code1 and code2 rank are the same...  picking code 1 as the collection to add to
     
             //update the head vertex of code2 group(which is the group number) group of group1
-            self.update_group(code2,code1);
+            self.combine_groups(code2,code1);
             self.incr_rank(code1);
             self.groups -= 1;
             println!("> New group for {} is {} - groups={}",group1, group2,self.groups);
@@ -300,9 +409,9 @@ mod tests {
         assert_eq!(c.find_group(1),Some(0));
         assert_eq!(c.find_group(2),Some(1));
         assert_eq!(c.find_group(3),Some(2));
-        assert_eq!(c.same_group(0,1),false);
-        assert_eq!(c.same_group(0,2),false);
-        assert_eq!(c.same_group(1,2),false);
+        assert_eq!(c.code_same_group(0,1),false);
+        assert_eq!(c.code_same_group(0,2),false);
+        assert_eq!(c.code_same_group(1,2),false);
         assert_eq!(c.get_rank(0),1);
         assert_eq!(c.get_rank(1),1);
         assert_eq!(c.get_rank(2),1);
@@ -322,10 +431,12 @@ mod tests {
     #[test]
     fn union_test() {
         let mut c = setup_basic(3);
-        c.union(0,1);
+        c.union_by_code(0,1);
         println!("After Union {:#?}",c);
         assert_eq!(c.find_grouping(1),0);
-        assert_eq!(c.same_group(0,1),true);
+        assert_eq!(c.find_grouping(0),0);
+        println!("group {:#?} {:#?}", c.find_grouping(0),c.find_grouping(1));
+        assert_eq!(c.code_same_group(0,1),true);
         assert_eq!(c.get_rank(0),2);
         assert_eq!(c.sizes(),(3,3,2));
     }
@@ -354,6 +465,27 @@ mod tests {
         assert_eq!(b.get_mask(4),0b1010);
         assert_eq!(b.get_mask(5),0b1100);
         assert_eq!(b.get_mask(6),0);
+    }
+
+    #[test]
+    fn vertex_spacing_test() {
+        let c = setup_basic(8);
+        assert_eq!(c.vertex_spacing(1,2),Some(1));
+        assert_eq!(c.vertex_spacing(1,4),Some(2));
+        assert_eq!(c.vertex_spacing(8,1),Some(3));
+
+    }
+
+    #[test]
+    fn cluster_spacing_test() {
+        let mut c = setup_basic(8);
+        println!("group for v8 {:#?}", c.find_group(8));
+        assert_eq!(c.vertex_cluster_spacing(1,8),Some((3,3)));
+        c.union_by_vertex(1,8);
+        c.union_by_vertex(1,2);
+        println!("Final {:#?}",c);
+        assert_eq!(c.vertex_cluster_spacing(1,8),Some((1,3)));
+
     }
 
 }
