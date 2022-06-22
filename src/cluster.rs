@@ -1,4 +1,5 @@
- use std::collections::{HashMap};
+use std::collections::{HashMap};
+use log::{ info, error, debug, warn,trace };
 
 #[derive(Debug)]
 struct VertexInfo {
@@ -69,13 +70,13 @@ impl ClusteringInfo {
         self.edges.sort();
 
         for edge in &self.edges {
-            println!("Edge: {:?}",edge);
+            debug!("Edge: {:?}",edge);
         }
         let mut cur_distance = 0;
         let num_edges = self.edges.len();
         for index in 0..num_edges {
             cur_distance = self.edges[index].weight.clone();
-            println!("#{} groups {} dist {} ",index, self.groups, cur_distance);
+            debug!("#{} groups {} dist {} ",index, self.groups, cur_distance);
             let start = self.edges[index].start_id.clone();
             let end = self.edges[index].end_id.clone();
             if self.groups > k {
@@ -128,7 +129,7 @@ impl ClusteringInfo {
         let group1 = self.find_grouping(node1).clone();
         let group2 = self.find_grouping(node2).clone();
 
-        println!("Union of {} and {} - Groups are {} and {}",node1,node2,group1,group2);
+        debug!("Union of {} and {} - Groups are {} and {}",node1,node2,group1,group2);
         if group1 == group2 {
             //Nothing to do, already are in the same group
         }
@@ -137,7 +138,7 @@ impl ClusteringInfo {
             v_info.group_id = group1;
             // update the number of remaining groups
             self.groups -= 1;
-            println!("New group for {} is {}",group2, group1);
+            debug!("New group for {} is {}",group2, group1);
         }
         else if self.vertex_map[&node1].rank < self.vertex_map[&node2].rank {
             // node2 rank must be higher than node1's
@@ -145,7 +146,7 @@ impl ClusteringInfo {
             v_info.group_id = group2;
             // update the number of remaining groups
             self.groups -= 1;
-            println!("New group for {} is {}",group1, group2);
+            debug!("New group for {} is {}",group1, group2);
         }
         else {
             // node1 and node2 rank are the same...  picking node 1 as the collection to add to
@@ -158,7 +159,7 @@ impl ClusteringInfo {
             v_info.rank += 1;
             // update the number of remaining groups
             self.groups -= 1;
-            println!("New group for {} is {}",group2, group1);
+            debug!("New group for {} is {}",group2, group1);
         }
 
     }

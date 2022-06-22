@@ -3,6 +3,7 @@ use std::fs::File;
 use std::io::{prelude::*, BufReader,BufRead};
 use regex::Regex;
 use std::io;
+use log::{ info, error, debug, warn,trace };
 
 mod cmd_line;
 use crate::cmd_line::CommandArgs;
@@ -26,7 +27,7 @@ fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
     for line in reader.lines() {
 		_count += 1;	
 		let line_data = line.unwrap();
- //       println!("Processing {}",line_data);
+        debug!("Processing {}",line_data);
 
         // split the line into the vertex and the list of adjacent vertexes/weight pairs
         let re_vertex = Regex::new(r"\s*(?P<src>\d+)\s+(?P<dest>\d+)\s+(?P<weight>-*\d+).*$").unwrap();
@@ -52,15 +53,21 @@ fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
     }
 
     let (num_vertex,num_edges) = c.size();
-    println!("Completed reading {} vertex and {} edges",num_vertex,num_edges);
+    info!("Completed reading {} vertex and {} edges",num_vertex,num_edges);
     let distance = c.cluster(num_clusters);
-    println!("Distance at {} clusters is {}",num_clusters,distance);
+    info!("Distance at {} clusters is {}",num_clusters,distance);
 
 }
 
 
 fn main() {
 
+    env_logger::init();
+    error!("{}", "And error occured");
+    warn!("{:#?}", "This is important");
+    info!("{:?}", "Take note");
+    debug!("Something weird occured: {}", "Error");
+    trace!("Tracing... {}", "Trace Test");
 
     let cmd_line = CommandArgs::new();
 
