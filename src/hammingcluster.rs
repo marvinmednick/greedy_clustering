@@ -172,7 +172,7 @@ impl HammingClusteringInfo {
         let mut summary = Vec::<String>::new();
         for (key,entry) in &self.hamming_clusters {
             let vertex_info: String = entry.vertex_list.iter().map(|i| i.to_string() + ", ").collect::<String>().clone();
-            let entry_summary = format!("CLUSTER: {} Group: {} Rank: {} Vertex: {}",
+            let entry_summary = format!("CLUSTER: {:#02X} Group: {:#02X} Rank: {} Vertex: {}",
                                   key,entry.group_id,entry.rank,vertex_info);
             summary.push(entry_summary);
         }
@@ -182,6 +182,10 @@ impl HammingClusteringInfo {
 
     pub fn sizes(&self) -> (usize,usize,usize) {
         (self.vertex_map.len(),self.hamming_clusters.len(),self.groups)
+    }
+
+    pub fn groups(&self) -> usize {
+        self.groups
     }
 
 
@@ -305,7 +309,7 @@ impl HammingClusteringInfo {
             for i in 0..one_bit_bitmask.len() {
                 let mask = one_bit_bitmask.get_mask(i);
                 let dest_hamming_code = (current_hamming_code ^ mask).clone();
-                debug!("Checking {} and {} result dest -> {}",current_hamming_code,mask,dest_hamming_code);
+                debug!("Checking {:#02X} and {:#02X} result dest -> {:#02X}",current_hamming_code,mask,dest_hamming_code);
                 if self.hamming_clusters.contains_key(&dest_hamming_code) && 
                     self.hamming_clusters[&dest_hamming_code].vertex_list.len() > 0 {
                     let (_,spacing) = self.hamming_cluster_spacing(current_hamming_code,dest_hamming_code).unwrap() ;
@@ -318,7 +322,7 @@ impl HammingClusteringInfo {
             for i in 0..two_bit_bitmask.len() {
                 let mask = two_bit_bitmask.get_mask(i);
                 let dest_hamming_code = (current_hamming_code ^ mask).clone();
-                debug!("Checking {} and {} result dest -> {}",current_hamming_code,mask,dest_hamming_code);
+                debug!("Checking {:#02X} and {:#02X} result dest -> {:#02X}",current_hamming_code,mask,dest_hamming_code);
                 if self.hamming_clusters.contains_key(&dest_hamming_code) &&
                     self.hamming_clusters[&dest_hamming_code].vertex_list.len() > 0 {
                     let (_,spacing) = self.hamming_cluster_spacing(current_hamming_code,dest_hamming_code).unwrap() ;

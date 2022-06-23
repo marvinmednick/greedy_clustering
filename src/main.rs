@@ -12,6 +12,7 @@ mod cluster;
 use crate::cluster::ClusteringInfo;
 
 mod hammingcluster;
+use crate::hammingcluster::HammingClusteringInfo;
 
 fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
 
@@ -34,16 +35,9 @@ fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
         // adjacent vertexes are in the format vertex,weight   - and regex below allows for
         // whitespace
         let caps = re_vertex.captures(&line_data).unwrap();
-        //let mut iter = line_data.split_whitespace();
-        //let src = iter.next().unwrap();
-        //let dest = iter.next().unwrap();
-        //let weight = iter.next().unwrap();
         let src_vertex = caps["src"].parse::<u32>().unwrap(); 
         let dest_vertex = caps["dest"].parse::<u32>().unwrap(); 
         let weight = caps["weight"].parse::<i32>().unwrap(); 
-        //let src_vertex = src.parse::<u32>().unwrap(); 
-        //let dest_vertex = dest.parse::<u32>().unwrap(); 
-        //let weight = weight.parse::<i32>().unwrap(); 
         c.add_edge(src_vertex,dest_vertex,weight);
         if _count % 1000 == 0 {
  //           println!("Added Edge #{}: from {} - {} wgt: {} --  ",_count,src_vertex,dest_vertex,weight);
@@ -60,14 +54,40 @@ fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
 }
 
 
+fn process_hamming_cluster(file: &mut File, num_clusters : usize ) {
+
+    let mut reader = BufReader::new(file);
+
+    // read the first line
+    let mut line = String::new();
+    let _len = reader.read_line(&mut line).unwrap();
+    debug!("First Input Line is \'{}\'",line);
+    let first_line_regex = Regex::new(r"\s*(?P<num_vertex>\d+)\s+(?P<num_bits>\d+)\s+.*$").unwrap();
+    let first_line = first_line_regex.captures(&line).unwrap();
+    let num_bits = first_line["num_bits"].parse::<u32>().unwrap(); 
+    
+    let mut c = HammingClusteringInfo::new(num_bits);
+
+	let mut _count = 0;
+    for line in reader.lines() {
+		_count += 1;	
+		let mut line_data = line.unwrap();
+        debug!("Processing {}",line_data);
+        // remove all the 
+        line_data.retain(|c| !c.is_whitespace());
+        let hamming_code = u32::from_str_radix(&line_data,2).expect("Not a binary number!");
+        c.add_vertex(_count,hamming_code);
+    }
+    debug!("{:#?}",c.summary());
+    c.do_cluster(3);
+    debug!("{:#?}",c.summary());
+    println!("After clustering there are {} clusters",c.groups());
+}
+
+
 fn main() {
 
     env_logger::init();
-    error!("{}", "And error occured");
-    warn!("{:#?}", "This is important");
-    info!("{:?}", "Take note");
-    debug!("Something weird occured: {}", "Error");
-    trace!("Tracing... {}", "Trace Test");
 
     let cmd_line = CommandArgs::new();
 
@@ -86,7 +106,12 @@ fn main() {
     };
 
 
-    process_standard_cluster(&mut file,cmd_line.num_clusters);
+    if cmd_line.hamming {
+        process_hamming_cluster(&mut file,cmd_line.num_clusters);
+    }
+    else {
+        process_standard_cluster(&mut file,cmd_line.num_clusters);
+    }
 
 }
 

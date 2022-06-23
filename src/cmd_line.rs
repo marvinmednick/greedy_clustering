@@ -1,4 +1,5 @@
 extern crate clap;
+use log::{ info, error, debug, warn,trace };
 
 use clap::{Arg, Command};
 
@@ -6,6 +7,7 @@ use clap::{Arg, Command};
 pub struct CommandArgs  {
     pub filename: String,
     pub num_clusters: usize,
+    pub hamming: bool,
 }
 
 impl CommandArgs  {
@@ -27,9 +29,14 @@ impl CommandArgs  {
             .help("number of clusters")
             .required(true);
 
+        let hamming_option = Arg::new("hamming")
+            .takes_value(false)
+            .help("cluster by hamming code");
+
         // now add in the argument we want to parse
         let mut app = app.arg(filename_option);
         app = app.arg(clusters_option);
+        app = app.arg(hamming_option);
 
         // extract the matches
         let matches = app.get_matches();
@@ -50,8 +57,10 @@ impl CommandArgs  {
             }
         };
 
-        println!("clap args: {} {}",filename, num_clusters);
+        let hamming = matches.is_present("hamming");
 
-        CommandArgs { filename: filename.to_string(), num_clusters : num_clusters}
+        info!("clap args: {} {} {}",filename, num_clusters, hamming);
+
+        CommandArgs { filename: filename.to_string(), num_clusters : num_clusters, hamming: hamming }
     }   
 }
