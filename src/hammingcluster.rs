@@ -2,18 +2,6 @@ use std::collections::{HashMap,BTreeMap};
 use log::{ info, error, debug, warn,trace };
 
 
-pub fn debug_vec(list_strings: Vec<String>) {
-    for e in list_strings {
-        debug!("{}",e);
-    }
-}
-
-pub fn info_vec(list_strings: Vec<String>) {
-    for e in list_strings {
-        info!("{}",e);
-    }
-}
-
 
 #[derive(Debug)]
 struct BitMaskingTable {
@@ -467,8 +455,22 @@ impl HammingClusteringInfo {
 mod tests {
     use super::*;
 
+
+pub fn debug_vec(list_strings: Vec<String>) {
+    for e in list_strings {
+        debug!("{}",e);
+    }
+}
+
+pub fn info_vec(list_strings: Vec<String>) {
+    for e in list_strings {
+        info!("{}",e);
+    }
+}
+
     fn init() {
         let _ = env_logger::builder().is_test(true).try_init();
+        info!("Init {}",module_path!())
     }
 
     fn setup_basic(num: u32) -> HammingClusteringInfo {
@@ -573,7 +575,7 @@ mod tests {
         assert_eq!(c.vertex_cluster_spacing(0,7),Some((3,3)));
         c.union_by_vertex(0,7);
         c.union_by_vertex(0,1);
-        debug!("Final {:#?}",c);
+        debug_vec(c.summary());
         assert_eq!(c.vertex_cluster_spacing(0,7),Some((1,3)));
 
     }
