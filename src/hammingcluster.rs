@@ -83,7 +83,6 @@ impl BitMaskingTable {
 }
 #[derive(Debug)]
 struct VertexGroup {
-    //orig_hamming_code: u32,
     vertex_list: Vec<u32>,
     group_id:  u32,
     rank:  u32,
@@ -94,7 +93,6 @@ impl VertexGroup {
     // create a new vertex group
     pub fn new(id: u32, hamming_code: u32) -> Self {
         let mut new_group = VertexGroup {
-            //orig_hamming_code: hamming_code,
             vertex_list:  Vec::<u32>::new(),
             group_id: hamming_code,
             rank: 1
@@ -191,7 +189,7 @@ impl HammingClusteringInfo {
 
 
     pub fn get_rank(&self,hamming_code: u32) -> u32 {
-        self.hamming_clusters[&hamming_code].get_rank()
+        self.hamming_clusters.get(&hamming_code).unwrap().get_rank()
     }
 
 
@@ -202,7 +200,7 @@ impl HammingClusteringInfo {
 
     // moves all the vertex in the list from the 'from group' to the "to group"
     pub fn combine_groups(&mut self,from_group: u32, to_group: u32) {
-        debug!("Moving {} to {}",from_group,to_group);
+        debug!("Moving {:#02X} to {:#02X}",from_group,to_group);
         let mut from_vg = self.hamming_clusters.remove(&from_group).unwrap();
         let mut to_vg = self.hamming_clusters.remove(&to_group).unwrap();
         to_vg.vertex_list.append(&mut from_vg.vertex_list);
@@ -256,10 +254,10 @@ impl HammingClusteringInfo {
                 let mut max_spacing = 0;
                 let mut min_spacing = u32::MAX;
                 for v1 in iter_g1 {
-                    debug!("Checking {}",v1);
+                    debug!("Checking v{}",v1);
                     let iter_g2_copy = iter_g2.clone();
                     for v2 in iter_g2_copy {
-                        debug!("..Checking {} {}",v1,v2);
+                        debug!("..Checking v{} v{}",v1,v2);
                         // skip checking spacing for min/max between a vector and itself..
                         if *v1 == *v2 {
                             continue;
@@ -278,7 +276,7 @@ impl HammingClusteringInfo {
                         }
                     }
                 }
-                debug!("HC Spacing between {} and {} is ({},{})",group1,group2,min_spacing,max_spacing);
+                debug!("HC Spacing between {:#02X} and {:#02X} is ({},{})",group1,group2,min_spacing,max_spacing);
                 (min_spacing,max_spacing)
 
             }),
@@ -289,28 +287,52 @@ impl HammingClusteringInfo {
 
 
     fn process_mask_and_union(&mut self, hamming_code :u32 ,mask :u32, max_dist: u32 ) {
-        let dest_hamming_code = (hamming_code ^ mask).clone();
+        let mut dest_hamming_code = (hamming_code ^ mask).clone();
+        let mut orig_hamming_code_str = "".to_string(); // for tracing
+        let mut parent_info = " ".to_string(); // for tracing
+
         if ! self.hamming_clusters.contains_key(&dest_hamming_code) {
             debug!("Skipping(no key) {:#02X} masked with {:#02X} -> {:#02X}",
                hamming_code,mask,dest_hamming_code);
             return;
         }
         if self.hamming_clusters[&dest_hamming_code].vertex_list.len() == 0 {
-            debug!("Skipping(empty) {:#02X} masked with {:#02X} -> {:#02X}",
-               hamming_code,mask,dest_hamming_code);
-            trace!("Len: {}",self.hamming_clusters[&dest_hamming_code].vertex_list.len());
-            trace!("Vertex {:#?}",self.hamming_clusters[&dest_hamming_code]);
-            return;
+            if let Some(dest_parent_group) = self.parent_grouping(dest_hamming_code) {
+                debug!("Checking Parent(empty) {:#02X} masked with {:#02X} -> {:#02X} Parent {:02X}",
+                   hamming_code,mask,dest_hamming_code,dest_parent_group);
+                orig_hamming_code_str = format!(" Orig: {:#02X} ",dest_hamming_code);
+                parent_info = " via Parent".to_string();
+                dest_hamming_code = dest_parent_group;
+
+                // check to see if the parent group for the destination is already 
+                // the same as the parent group for the code we are processing
+                // if so then these groups are already merged and so we're done
+                let init_parent_group = self.find_grouping(hamming_code).unwrap();
+                if init_parent_group == dest_parent_group {
+                    debug!("Skiping Parent(identical) {:#02X} masked with {:#02X} -> {:#02X} Parent {:02X}",
+                       hamming_code,mask,dest_hamming_code,dest_parent_group);
+                    return;
+                }
+            }
+            else {
+                // This should not happen -- there shouldn't be an empty vetex list without a
+                // parent
+                error!("Skipping(empty) {:#02X} masked with {:#02X} -> {:#02X}",
+                   hamming_code,mask,dest_hamming_code);
+                trace!("Len: {}",self.hamming_clusters[&dest_hamming_code].vertex_list.len());
+                trace!("Vertex {:#?}",self.hamming_clusters[&dest_hamming_code]);
+                return;
+            }
         }
-        let (_,spacing) = self.hamming_cluster_spacing(hamming_code,dest_hamming_code).unwrap() ;
+        let (spacing,_) = self.hamming_cluster_spacing(hamming_code,dest_hamming_code).unwrap() ;
         if spacing < max_dist {
-            debug!("Combining(spacing={}) {:#02X} masked with {:#02X} -> {:#02X}",
-               spacing,hamming_code,mask,dest_hamming_code);
+            debug!("Combining{}(spacing={}) {:#02X} masked with {:#02X} -> {:#02X} {}",
+               parent_info,spacing,hamming_code,mask,dest_hamming_code,orig_hamming_code_str);
             self.union_by_code(hamming_code,dest_hamming_code);
         }
         else {
-            debug!("Skipping(spacing={}) {:#02X} masked with {:#02X} -> {:#02X}",
-               spacing,hamming_code,mask,dest_hamming_code);
+            debug!("Skipping{}(spacing={}) {:#02X} masked with {:#02X} -> {:#02X} {}",
+               parent_info,spacing,hamming_code,mask,dest_hamming_code,orig_hamming_code_str);
         }
     }
 
@@ -348,7 +370,7 @@ impl HammingClusteringInfo {
     pub fn find_group(&mut self,vertex: u32) -> Option<u32> {
         if let Some(hamming_code) = self.vertex_map.get(&vertex) {
             let hc = hamming_code.clone();
-            Some(self.find_grouping(hc))
+            self.find_grouping(hc)
         }
         else {
             None
@@ -358,7 +380,7 @@ impl HammingClusteringInfo {
     // recursively traverse the tree until it finds the top 
     // as a result, each member of the tree visisted will also be updated 
     // shortining the number of checks as time proceeds
-    pub fn find_grouping(&mut self, hamming_code: u32) -> u32 {
+    pub fn find_grouping(&mut self, hamming_code: u32) -> Option<u32> {
 
         // remove the current entry from the list as we need to modify it
         // (it will be re-inserted later)
@@ -372,18 +394,33 @@ impl HammingClusteringInfo {
             // this is the top of the tree
             if current_group != hamming_code {
                 // if not, set the group to the grouping of my parent
-                current_group = self.find_grouping(current_group);
+                current_group = self.find_grouping(current_group).unwrap();
             }
             // update the group and then re-insert into the hashmap
             current_vertex_group.group_id = current_group;
             self.hamming_clusters.insert(hamming_code,current_vertex_group);
-            current_group
+            Some(current_group)
         }    
         else {
             error!("No Entry found for hamming code {}",hamming_code);
-            0
+            None
         }
-    
+    }
+
+    // returns the parent group for the specific code, 
+    // or retun None if this is the top most group
+    pub fn parent_grouping(&mut self, hamming_code: u32) -> Option<u32> {
+        if let Some(parent_group) = self.find_grouping(hamming_code) {
+            if parent_group != hamming_code {
+                Some(parent_group)
+            }
+            else {
+                None
+            }
+        }
+        else {
+            None
+        }
 
     }
 
@@ -417,43 +454,50 @@ impl HammingClusteringInfo {
     } 
 
     pub fn union_by_code(&mut self, code1: u32, code2: u32) {
-        let group1 = self.find_grouping(code1).clone();
-        let group2 = self.find_grouping(code2).clone();
-        let rank1 = self.get_rank(code1).clone();
-        let rank2 = self.get_rank(code2).clone();
+        let group1_result = self.find_grouping(code1).clone();
+        let group2_result = self.find_grouping(code2).clone();
 
-        debug!("Union of {} and {} - Groups are {} and {}",code1,code2,group1,group2);
-        if group1 == group2 {
-            //Nothing to do, already are in the same group
-        }
-        else if rank1 > rank2 {
-            self.combine_groups(code2,code1);
-            // update the number of remaining groups
-            self.groups -= 1;
-            debug!("> New group for {} is {} - groups={}",group2, group1,self.groups);
-            debug!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
-        }
-        else if rank1 < rank2 {
-            self.combine_groups(code1,code2);
-            self.groups -= 1;
-            debug!("< New group for {} is {} - groups={}",group1, group2,self.groups);
-            debug!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
-        }
-        else {
-            // code1 and code2 rank are the same...  picking code 1 as the collection to add to
-    
-            //update the head vertex of code2 group(which is the group number) group of group1
-            self.combine_groups(code2,code1);
-            self.incr_rank(code1);
-            self.groups -= 1;
-            debug!("= New group for {} is {} - groups={}",group1, group2,self.groups);
-            debug!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
+        match (group1_result,group2_result) {
+            (Some(group1),Some(group2)) => {
+                debug!("Creating Union of {:#02X} and {:#02X} - Groups are {:#02X} and {:#02X}",code1,code2,group1,group2);
+                let rank1 = self.get_rank(code1).clone();
+                let rank2 = self.get_rank(code2).clone();
+                if group1 == group2 {
+                    //Nothing to do, already are in the same group
+                }
+                else if rank1 > rank2 {
+                    self.combine_groups(code2,code1);
+                    // update the number of remaining groups
+                    self.groups -= 1;
+                    debug!("> New group for {:02X} is {:02X} - groups={:02X}",group2, group1,self.groups);
+                    trace!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
+                }
+                else if rank1 < rank2 {
+                    self.combine_groups(code1,code2);
+                    self.groups -= 1;
+                    debug!("< New group for {:02X} is {:02X} - groups={:02X}",group1, group2,self.groups);
+                    trace!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
+                }
+                else {
+                    // code1 and code2 rank are the same...  picking code 1 as the collection to add to
+            
+                    //update the head vertex of code2 group(which is the group number) group of group1
+                    self.combine_groups(code2,code1);
+                    self.incr_rank(code1);
+                    self.groups -= 1;
+                    debug!("= New group for {:02X} is {:02X} - groups={:02X}",group1, group2,self.groups);
+                    trace!("G1 {:#?} G2 {:#?}",self.hamming_clusters[&group1],self.hamming_clusters[&group2]);
+                }
+            },
+
+            _ => {
+                error!("Union_by_code: Invalid code {:#02X} {:#02X}",code1,code2);
+                return;
+            }
         }
 
     }
-
 }
-
 
 
 /*
@@ -497,8 +541,6 @@ pub fn info_vec(list_strings: Vec<String>) {
 
     }
 
-        
-
 
     #[test]
     fn initial_setup_test() {
@@ -534,8 +576,8 @@ pub fn info_vec(list_strings: Vec<String>) {
         let mut c = setup_basic(3);
         c.union_by_code(0,1);
         trace!("After Union {:#?}",c);
-        assert_eq!(c.find_grouping(1),0);
-        assert_eq!(c.find_grouping(0),0);
+        assert_eq!(c.find_grouping(1),Some(0));
+        assert_eq!(c.find_grouping(0),Some(0));
         debug!("group {:#?} {:#?}", c.find_grouping(0),c.find_grouping(1));
         assert_eq!(c.code_same_group(0,1),true);
         assert_eq!(c.get_rank(0),2);
@@ -599,7 +641,7 @@ pub fn info_vec(list_strings: Vec<String>) {
         let mut c = setup_basic(16);
         c.do_cluster(3);
         info_vec(c.summary());
-        assert_eq!(c.sizes(),(16,16,4));
+        assert_eq!(c.sizes(),(16,16,1));
     }
 
     #[test]
@@ -610,7 +652,7 @@ pub fn info_vec(list_strings: Vec<String>) {
     }
 
     #[test]
-    fn test_case1() {
+    fn hamming_test_case1() {
         init();
         let num_bits = 5;
         let mut c = HammingClusteringInfo::new(num_bits);
@@ -621,7 +663,26 @@ pub fn info_vec(list_strings: Vec<String>) {
         c.add_vertex(4,0b00010);
         c.do_cluster(3);
         info_vec(c.summary());
-        assert_eq!(c.sizes(),(5,5,2));
+        assert_eq!(c.groups(),2);
+    }
+    #[test]
+    fn hamming_test_case2() {
+        init();
+        let num_bits = 10;
+        let mut c = HammingClusteringInfo::new(num_bits);
+        c.add_vertex(1,0b1000000000);
+        c.add_vertex(2,0b1110000000);
+        c.add_vertex(3,0b1001100000);
+        c.add_vertex(4,0b1000011000);
+        c.add_vertex(5,0b1000000110);
+        c.add_vertex(6,0b0100000001);
+        c.add_vertex(7,0b0100001001);
+        c.add_vertex(8,0b0100011001);
+        c.add_vertex(9,0b0100111001);
+        c.add_vertex(10,0b0100111001);
+        c.do_cluster(3);
+        info_vec(c.summary());
+        assert_eq!(c.groups(),2);
     }
     
 

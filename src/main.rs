@@ -52,7 +52,7 @@ fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
     let (num_vertex,num_edges) = c.size();
     info!("Completed reading {} vertex and {} edges",num_vertex,num_edges);
     let distance = c.cluster(num_clusters);
-    info!("Distance at {} clusters is {}",num_clusters,distance);
+    println!("Distance at {} clusters is {}",num_clusters,distance);
 
 }
 
