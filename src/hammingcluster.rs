@@ -82,7 +82,7 @@ impl BitMaskingTable {
 }
 #[derive(Debug)]
 struct VertexGroup {
-    orig_hamming_code: u32,
+    //orig_hamming_code: u32,
     vertex_list: Vec<u32>,
     group_id:  u32,
     rank:  u32,
@@ -93,7 +93,7 @@ impl VertexGroup {
     // create a new vertex group
     pub fn new(id: u32, hamming_code: u32) -> Self {
         let mut new_group = VertexGroup {
-            orig_hamming_code: hamming_code,
+            //orig_hamming_code: hamming_code,
             vertex_list:  Vec::<u32>::new(),
             group_id: hamming_code,
             rank: 1
@@ -361,7 +361,7 @@ impl HammingClusteringInfo {
             // check if this node is at the the top of the tree
             // if the group hasn't changed from the initial setup
             // this is the top of the tree
-            if current_group != current_vertex_group.orig_hamming_code {
+            if current_group != hamming_code {
                 // if not, set the group to the grouping of my parent
                 current_group = self.find_grouping(current_group);
             }
