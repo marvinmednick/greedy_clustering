@@ -14,6 +14,9 @@ use crate::cluster::ClusteringInfo;
 mod hammingcluster;
 use crate::hammingcluster::HammingClusteringInfo;
 
+mod log_string_vec;
+use crate::log_string_vec::{info_vec,debug_vec};
+
 fn process_standard_cluster(file: &mut File, num_clusters : usize ) {
 
     let mut reader = BufReader::new(file);
@@ -78,9 +81,9 @@ fn process_hamming_cluster(file: &mut File, num_clusters : usize ) {
         let hamming_code = u32::from_str_radix(&line_data,2).expect("Not a binary number!");
         c.add_vertex(_count,hamming_code);
     }
-    debug!("{:#?}",c.summary());
+    debug_vec(c.summary());
     c.do_cluster(3);
-    debug!("{:#?}",c.summary());
+    info_vec(c.summary());
     println!("After clustering there are {} clusters",c.groups());
 }
 

@@ -1,6 +1,7 @@
 use std::collections::{HashMap,BTreeMap}; 
 use log::{ info, error, debug, warn,trace };
 
+use crate::log_string_vec::{debug_vec,info_vec};
 
 
 #[derive(Debug)]
@@ -287,6 +288,32 @@ impl HammingClusteringInfo {
     }
 
 
+    fn process_mask_and_union(&mut self, hamming_code :u32 ,mask :u32, max_dist: u32 ) {
+        let dest_hamming_code = (hamming_code ^ mask).clone();
+        if ! self.hamming_clusters.contains_key(&dest_hamming_code) {
+            debug!("Skipping(no key) {:#02X} masked with {:#02X} -> {:#02X}",
+               hamming_code,mask,dest_hamming_code);
+            return;
+        }
+        if self.hamming_clusters[&dest_hamming_code].vertex_list.len() == 0 {
+            debug!("Skipping(empty) {:#02X} masked with {:#02X} -> {:#02X}",
+               hamming_code,mask,dest_hamming_code);
+            trace!("Len: {}",self.hamming_clusters[&dest_hamming_code].vertex_list.len());
+            trace!("Vertex {:#?}",self.hamming_clusters[&dest_hamming_code]);
+            return;
+        }
+        let (_,spacing) = self.hamming_cluster_spacing(hamming_code,dest_hamming_code).unwrap() ;
+        if spacing < max_dist {
+            debug!("Combining(spacing={}) {:#02X} masked with {:#02X} -> {:#02X}",
+               spacing,hamming_code,mask,dest_hamming_code);
+            self.union_by_code(hamming_code,dest_hamming_code);
+        }
+        else {
+            debug!("Skipping(spacing={}) {:#02X} masked with {:#02X} -> {:#02X}",
+               spacing,hamming_code,mask,dest_hamming_code);
+        }
+    }
+
     //  cluster 
     //
     //  going to find and combine all the groups
@@ -308,29 +335,11 @@ impl HammingClusteringInfo {
             let current_hamming_code = key.clone();
             for i in 0..one_bit_bitmask.len() {
                 let mask = one_bit_bitmask.get_mask(i);
-                let dest_hamming_code = (current_hamming_code ^ mask).clone();
-                debug!("Checking {:#02X} and {:#02X} result dest -> {:#02X}",current_hamming_code,mask,dest_hamming_code);
-                if self.hamming_clusters.contains_key(&dest_hamming_code) && 
-                    self.hamming_clusters[&dest_hamming_code].vertex_list.len() > 0 {
-                    let (_,spacing) = self.hamming_cluster_spacing(current_hamming_code,dest_hamming_code).unwrap() ;
-                    debug!(" ... Spacing between {} and {} is {}",current_hamming_code,dest_hamming_code,spacing);
-                    if spacing < max_dist {
-                        self.union_by_code(current_hamming_code,dest_hamming_code);
-                    }
-                }
+                self.process_mask_and_union(current_hamming_code,mask,max_dist);
             }
             for i in 0..two_bit_bitmask.len() {
                 let mask = two_bit_bitmask.get_mask(i);
-                let dest_hamming_code = (current_hamming_code ^ mask).clone();
-                debug!("Checking {:#02X} and {:#02X} result dest -> {:#02X}",current_hamming_code,mask,dest_hamming_code);
-                if self.hamming_clusters.contains_key(&dest_hamming_code) &&
-                    self.hamming_clusters[&dest_hamming_code].vertex_list.len() > 0 {
-                    let (_,spacing) = self.hamming_cluster_spacing(current_hamming_code,dest_hamming_code).unwrap() ;
-                    debug!(" ___ Spacing between {} and {} is {}",current_hamming_code,dest_hamming_code,spacing);
-                    if spacing < max_dist {
-                        self.union_by_code(current_hamming_code,dest_hamming_code);
-                    }
-                }
+                self.process_mask_and_union(current_hamming_code,mask,max_dist);
             }
         }
 
