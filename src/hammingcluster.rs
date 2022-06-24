@@ -253,6 +253,12 @@ impl HammingClusteringInfo {
                 let iter_g2 = vgroup2.vertex_list.iter();
                 let mut max_spacing = 0;
                 let mut min_spacing = u32::MAX;
+
+                let size1 = vgroup1.vertex_list.len();
+                let size2 = vgroup2.vertex_list.len();
+                if size1 == 0 || size2 == 0 {
+                    error!("Checking Empty List {:02X} ({}) {:02X} ({})",group1,size1,group2,size2)
+                }
                 for v1 in iter_g1 {
                     debug!("Checking v{}",v1);
                     let iter_g2_copy = iter_g2.clone();
@@ -287,30 +293,44 @@ impl HammingClusteringInfo {
 
 
     fn process_mask_and_union(&mut self, hamming_code :u32 ,mask :u32, max_dist: u32 ) {
-        let mut dest_hamming_code = (hamming_code ^ mask).clone();
+        let mut destination_code = (hamming_code ^ mask).clone();
         let mut orig_hamming_code_str = "".to_string(); // for tracing
         let mut parent_info = " ".to_string(); // for tracing
+        let mut code_to_process = hamming_code;
 
-        if ! self.hamming_clusters.contains_key(&dest_hamming_code) {
+        if ! self.hamming_clusters.contains_key(&destination_code) {
             debug!("Skipping(no key) {:#02X} masked with {:#02X} -> {:#02X}",
-               hamming_code,mask,dest_hamming_code);
+               hamming_code,mask,destination_code);
             return;
         }
-        if self.hamming_clusters[&dest_hamming_code].vertex_list.len() == 0 {
-            if let Some(dest_parent_group) = self.parent_grouping(dest_hamming_code) {
-                debug!("Checking Parent(empty) {:#02X} masked with {:#02X} -> {:#02X} Parent {:02X}",
-                   hamming_code,mask,dest_hamming_code,dest_parent_group);
-                orig_hamming_code_str = format!(" Orig: {:#02X} ",dest_hamming_code);
+        // if the hamming group is empty -- use its parent group instead
+        if self.hamming_clusters[&hamming_code].vertex_list.len() == 0 {
+            if let Some(dest_group) = self.parent_grouping(hamming_code) {
+                debug!("Primary Group {:#02X} is empty; replacing with Parent {:#02X}", hamming_code,dest_group);
+                code_to_process = dest_group;
+            }
+            else {
+                error!("Skipping (no parent): {:#02X} masked with {:#02X} -> {:02X}", code_to_process,mask,destination_code);
+                return
+            }
+        }
+            
+
+        if self.hamming_clusters[&destination_code].vertex_list.len() == 0 {
+            if let Some(dest_parent_group) = self.parent_grouping(destination_code) {
+                debug!("Checking Parent(empty) {:#02X} masked with {:#02X} -> {:#02X} Parent {:#02X}",
+                   hamming_code,mask,destination_code,dest_parent_group);
+                orig_hamming_code_str = format!(" Orig: {:#02X} ",destination_code);
                 parent_info = " via Parent".to_string();
-                dest_hamming_code = dest_parent_group;
+                destination_code = dest_parent_group;
 
                 // check to see if the parent group for the destination is already 
                 // the same as the parent group for the code we are processing
                 // if so then these groups are already merged and so we're done
-                let init_parent_group = self.find_grouping(hamming_code).unwrap();
+                let init_parent_group = self.find_grouping(code_to_process).unwrap();
                 if init_parent_group == dest_parent_group {
-                    debug!("Skiping Parent(identical) {:#02X} masked with {:#02X} -> {:#02X} Parent {:02X}",
-                       hamming_code,mask,dest_hamming_code,dest_parent_group);
+                    debug!("Skiping Parent(identical) {:#02X} masked with {:#02X} -> {:#02X} Parent {:#02X}",
+                       code_to_process,mask,destination_code,dest_parent_group);
                     return;
                 }
             }
@@ -318,21 +338,21 @@ impl HammingClusteringInfo {
                 // This should not happen -- there shouldn't be an empty vetex list without a
                 // parent
                 error!("Skipping(empty) {:#02X} masked with {:#02X} -> {:#02X}",
-                   hamming_code,mask,dest_hamming_code);
-                trace!("Len: {}",self.hamming_clusters[&dest_hamming_code].vertex_list.len());
-                trace!("Vertex {:#?}",self.hamming_clusters[&dest_hamming_code]);
+                   code_to_process,mask,destination_code);
+                trace!("Len: {}",self.hamming_clusters[&destination_code].vertex_list.len());
+                trace!("Vertex {:#?}",self.hamming_clusters[&destination_code]);
                 return;
             }
         }
-        let (spacing,_) = self.hamming_cluster_spacing(hamming_code,dest_hamming_code).unwrap() ;
+        let (spacing,_) = self.hamming_cluster_spacing(code_to_process,destination_code).unwrap() ;
         if spacing < max_dist {
             debug!("Combining{}(spacing={}) {:#02X} masked with {:#02X} -> {:#02X} {}",
-               parent_info,spacing,hamming_code,mask,dest_hamming_code,orig_hamming_code_str);
-            self.union_by_code(hamming_code,dest_hamming_code);
+               parent_info,spacing,code_to_process,mask,destination_code,orig_hamming_code_str);
+            self.union_by_code(code_to_process,destination_code);
         }
         else {
             debug!("Skipping{}(spacing={}) {:#02X} masked with {:#02X} -> {:#02X} {}",
-               parent_info,spacing,hamming_code,mask,dest_hamming_code,orig_hamming_code_str);
+               parent_info,spacing,code_to_process,mask,destination_code,orig_hamming_code_str);
         }
     }
 
@@ -350,15 +370,14 @@ impl HammingClusteringInfo {
         }
 
         for key in hamming_code_list {
-            // skip any hamming codes that are empty
-            if self.hamming_clusters[&key].vertex_list.len() == 0 {
-                continue
-            }
+
             let current_hamming_code = key.clone();
+
             for i in 0..one_bit_bitmask.len() {
                 let mask = one_bit_bitmask.get_mask(i);
                 self.process_mask_and_union(current_hamming_code,mask,max_dist);
             }
+
             for i in 0..two_bit_bitmask.len() {
                 let mask = two_bit_bitmask.get_mask(i);
                 self.process_mask_and_union(current_hamming_code,mask,max_dist);

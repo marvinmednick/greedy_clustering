@@ -84,7 +84,57 @@ fn process_hamming_cluster(file: &mut File, num_clusters : usize ) {
     debug_vec(c.summary());
     c.do_cluster(3);
     info_vec(c.summary());
-    println!("After clustering there are {} clusters",c.groups());
+    info!("After clustering there are {} clusters",c.groups());
+    println!("{}",c.groups());
+}
+
+
+fn process_hamming_as_standard(file: &mut File, num_clusters : usize ) {
+
+    let mut reader = BufReader::new(file);
+
+    // read the first line
+    let mut line = String::new();
+    let _len = reader.read_line(&mut line).unwrap();
+    debug!("First Input Line is \'{}\'",line);
+    let first_line_regex = Regex::new(r"\s*(?P<num_vertex>\d+)\s+(?P<num_bits>\d+)\s+.*$").unwrap();
+    let first_line = first_line_regex.captures(&line).unwrap();
+    let num_bits = first_line["num_bits"].parse::<u32>().unwrap(); 
+    
+    let mut vert_list = Vec::<u32>::new();
+
+    // read all the vertexes and their hamming codes in
+	let mut _count = 0;
+    for line in reader.lines() {
+		_count += 1;	
+		let mut line_data = line.unwrap();
+        debug!("Processing {}",line_data);
+        // remove all the 
+        line_data.retain(|c| !c.is_whitespace());
+        let hamming_code = u32::from_str_radix(&line_data,2).expect("Not a binary number!");
+        vert_list.push(hamming_code);
+        debug!("Added {:#02X}",hamming_code);
+    }
+    let mut c = ClusteringInfo::new();
+
+    for index1 in 0..vert_list.len() {
+        for index2 in 0..vert_list.len() {
+            let code1 = vert_list[index1];
+            let code2 = vert_list[index2];
+
+            let bit_diff = code1 ^ code2;
+            let weight = bit_diff.count_ones();
+            c.add_edge(index1 as u32,index2 as u32,weight as i32);
+            debug!("Hamming {:#02X} {:#02X} {}",code1,code2,weight);
+            debug!("Adding {} {} {}",index1,index2,weight);
+        }
+    }
+
+    let (num_vertex,num_edges) = c.size();
+    info!("Completed reading {} vertex and {} edges",num_vertex,num_edges);
+    let distance = c.cluster(num_clusters);
+    println!("Distance at {} clusters is {}",num_clusters,distance);
+
 }
 
 
@@ -94,10 +144,11 @@ fn main() {
 
     let cmd_line = CommandArgs::new();
 
-    println!("Hello, {:?}!",cmd_line);
+    debug!("Command Line, {:?}!",cmd_line);
 
-    println!("Determining the distances for {} clusters",cmd_line.num_clusters);
-  // Create a path to the desired file
+    info!("Determining the distances for {} clusters",cmd_line.num_clusters);
+
+    // Create a path to the desired file
     let path = Path::new(&cmd_line.filename);
     let display = path.display();
 
@@ -108,8 +159,10 @@ fn main() {
         Ok(file) => file,
     };
 
-
-    if cmd_line.hamming {
+    if cmd_line.h_as_s {
+        process_hamming_as_standard(&mut file,cmd_line.num_clusters);
+    }
+    else if cmd_line.hamming {
         process_hamming_cluster(&mut file,cmd_line.num_clusters);
     }
     else {

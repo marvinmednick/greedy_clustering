@@ -10,4 +10,10 @@ Cargo.lock
 **/*.rs.bk
 
 # scratch file for reviewin output
-output
+output*
+
+# link to release executable
+cluster
+
+# Link to stanford provided test cases
+tcs
